@@ -143,6 +143,8 @@ python visualize_results.py checkpoints/experiment_20250717_135243 --plot all
 - Training history curves
 - Performance metrics across horizons
 - Prediction vs actual analysis
+- **NEW: Return analysis by horizon** - Shows predicted vs actual returns for each time horizon
+- **NEW: Return accuracy analysis** - Shows accuracy bands and error distributions
 - Financial performance metrics
 - Model comparison with baselines
 
@@ -166,12 +168,35 @@ python visualize_results.py checkpoints/experiment_20250717_135243 --save_dir pl
 python visualize_results.py checkpoints/experiment_20250717_135243 --plot performance_metrics
 python visualize_results.py checkpoints/experiment_20250717_135243 --plot training_history
 python visualize_results.py checkpoints/experiment_20250717_135243 --plot prediction_analysis
+python visualize_results.py checkpoints/experiment_20250717_135243 --plot return_analysis_by_horizon
+python visualize_results.py checkpoints/experiment_20250717_135243 --plot return_accuracy_analysis
 ```
 
 **Real-time monitoring during training:**
 ```bash
 python training_monitor.py checkpoints/experiment_20250717_135243 --mode monitor
 ```
+
+### 📊 Return Analysis Features
+
+The new return analysis visualizations provide detailed insights into prediction accuracy:
+
+**Return Analysis by Horizon:**
+- Scatter plots of predicted vs actual returns for each horizon (30, 180, 365, 730 days)
+- Correlation coefficients between predictions and actual returns
+- Mean Absolute Percentage Error (MAPE) for each horizon
+- Perfect prediction reference lines
+
+**Return Accuracy Analysis:**
+- Accuracy within different error tolerance bands (±1%, ±2%, ±5%, ±10%, ±15%, ±20%)
+- Error distribution boxplots showing prediction spread
+- MAPE comparison across horizons
+- Correlation and R² values for each prediction horizon
+
+**Key Metrics:**
+- **MAPE**: How many percentage points off the predictions are on average
+- **Correlation**: How well predictions track actual return direction and magnitude
+- **Error Bands**: Percentage of predictions within specific accuracy thresholds
 
 ## 🏗️ Project Structure
 

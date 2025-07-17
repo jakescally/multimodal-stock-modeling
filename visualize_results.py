@@ -237,6 +237,199 @@ class ModelPerformanceVisualizer:
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
         plt.show()
     
+    def plot_return_analysis_by_horizon(self, save_path: Optional[str] = None):
+        """Plot return prediction analysis for each horizon"""
+        if self.predictions is None:
+            print("No predictions available. Run training with --save_predictions flag.")
+            return
+        
+        predictions = self.predictions['predictions']
+        targets = self.predictions['targets']
+        horizons = ['30', '180', '365', '730']
+        
+        fig, axes = plt.subplots(2, 2, figsize=self.figsize)
+        fig.suptitle('Return Prediction Analysis by Horizon', fontsize=16, fontweight='bold')
+        
+        colors = ['skyblue', 'lightgreen', 'coral', 'gold']
+        
+        for i, horizon in enumerate(horizons):
+            horizon_key = f'horizon_{horizon}'
+            if horizon_key in predictions and horizon_key in targets:
+                pred = predictions[horizon_key].numpy().flatten()
+                actual = targets[horizon_key].numpy().flatten()
+                
+                # Convert to percentages for display
+                pred_pct = pred * 100
+                actual_pct = actual * 100
+                
+                row, col = i // 2, i % 2
+                
+                # Scatter plot with trend line
+                axes[row, col].scatter(actual_pct, pred_pct, alpha=0.6, s=20, color=colors[i])
+                
+                # Perfect prediction line
+                min_val = min(actual_pct.min(), pred_pct.min())
+                max_val = max(actual_pct.max(), pred_pct.max())
+                axes[row, col].plot([min_val, max_val], [min_val, max_val], 
+                                  'r--', lw=2, label='Perfect Prediction')
+                
+                # Calculate and show correlation
+                correlation = np.corrcoef(actual_pct, pred_pct)[0, 1]
+                
+                # Calculate mean absolute percentage error
+                mape = np.mean(np.abs(pred_pct - actual_pct))
+                
+                axes[row, col].set_title(f'{horizon}-Day Returns\nCorr: {correlation:.3f}, MAPE: {mape:.2f}%')
+                axes[row, col].set_xlabel('Actual Returns (%)')
+                axes[row, col].set_ylabel('Predicted Returns (%)')
+                axes[row, col].legend()
+                axes[row, col].grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.show()
+    
+    def plot_return_accuracy_analysis(self, save_path: Optional[str] = None):
+        """Plot return accuracy analysis with error bands"""
+        if self.predictions is None:
+            print("No predictions available. Run training with --save_predictions flag.")
+            return
+        
+        predictions = self.predictions['predictions']
+        targets = self.predictions['targets']
+        horizons = ['30', '180', '365', '730']
+        
+        fig, axes = plt.subplots(2, 2, figsize=self.figsize)
+        fig.suptitle('Return Prediction Accuracy Analysis', fontsize=16, fontweight='bold')
+        
+        # Error band thresholds (in percentage points)
+        error_bands = [1, 2, 5, 10, 15, 20]
+        
+        # Collect accuracy data
+        accuracy_data = []
+        horizon_names = []
+        
+        for horizon in horizons:
+            horizon_key = f'horizon_{horizon}'
+            if horizon_key in predictions and horizon_key in targets:
+                pred = predictions[horizon_key].numpy().flatten()
+                actual = targets[horizon_key].numpy().flatten()
+                
+                # Convert to percentages
+                pred_pct = pred * 100
+                actual_pct = actual * 100
+                
+                # Calculate absolute errors
+                abs_errors = np.abs(pred_pct - actual_pct)
+                
+                # Calculate accuracy for different error bands
+                band_accuracies = []
+                for band in error_bands:
+                    accuracy = (abs_errors <= band).mean() * 100
+                    band_accuracies.append(accuracy)
+                
+                accuracy_data.append(band_accuracies)
+                horizon_names.append(f'{horizon}-day')
+        
+        # Plot 1: Accuracy by error bands
+        if accuracy_data:
+            x = np.arange(len(error_bands))
+            width = 0.2
+            
+            for i, (horizon_acc, horizon_name) in enumerate(zip(accuracy_data, horizon_names)):
+                axes[0, 0].bar(x + i * width, horizon_acc, width, label=horizon_name, alpha=0.8)
+            
+            axes[0, 0].set_title('Prediction Accuracy by Error Tolerance')
+            axes[0, 0].set_xlabel('Error Tolerance (% points)')
+            axes[0, 0].set_ylabel('Accuracy (%)')
+            axes[0, 0].set_xticks(x + width * 1.5)
+            axes[0, 0].set_xticklabels([f'±{band}%' for band in error_bands])
+            axes[0, 0].legend()
+            axes[0, 0].grid(True, alpha=0.3)
+        
+        # Plot 2: Error distribution by horizon
+        error_distributions = []
+        for horizon in horizons:
+            horizon_key = f'horizon_{horizon}'
+            if horizon_key in predictions and horizon_key in targets:
+                pred = predictions[horizon_key].numpy().flatten()
+                actual = targets[horizon_key].numpy().flatten()
+                
+                # Calculate absolute percentage errors
+                abs_errors = np.abs((pred - actual) * 100)
+                error_distributions.append(abs_errors)
+        
+        if error_distributions:
+            axes[0, 1].boxplot(error_distributions, labels=[f'{h}-day' for h in horizons])
+            axes[0, 1].set_title('Error Distribution by Horizon')
+            axes[0, 1].set_xlabel('Prediction Horizon')
+            axes[0, 1].set_ylabel('Absolute Error (% points)')
+            axes[0, 1].grid(True, alpha=0.3)
+        
+        # Plot 3: Mean Absolute Percentage Error (MAPE) by horizon
+        mape_values = []
+        for horizon in horizons:
+            horizon_key = f'horizon_{horizon}'
+            if horizon_key in predictions and horizon_key in targets:
+                pred = predictions[horizon_key].numpy().flatten()
+                actual = targets[horizon_key].numpy().flatten()
+                
+                # Calculate MAPE
+                mape = np.mean(np.abs((pred - actual) * 100))
+                mape_values.append(mape)
+        
+        if mape_values:
+            bars = axes[1, 0].bar(horizons, mape_values, color=['skyblue', 'lightgreen', 'coral', 'gold'], alpha=0.8)
+            axes[1, 0].set_title('Mean Absolute Percentage Error (MAPE)')
+            axes[1, 0].set_xlabel('Prediction Horizon (days)')
+            axes[1, 0].set_ylabel('MAPE (% points)')
+            axes[1, 0].grid(True, alpha=0.3)
+            
+            # Add value labels on bars
+            for bar, mape in zip(bars, mape_values):
+                height = bar.get_height()
+                axes[1, 0].text(bar.get_x() + bar.get_width()/2., height + 0.1,
+                               f'{mape:.1f}%', ha='center', va='bottom')
+        
+        # Plot 4: Correlation and R² by horizon
+        correlations = []
+        r_squared_values = []
+        
+        for horizon in horizons:
+            horizon_key = f'horizon_{horizon}'
+            if horizon_key in predictions and horizon_key in targets:
+                pred = predictions[horizon_key].numpy().flatten()
+                actual = targets[horizon_key].numpy().flatten()
+                
+                # Calculate correlation
+                corr = np.corrcoef(actual, pred)[0, 1]
+                correlations.append(corr)
+                
+                # Calculate R²
+                r2 = corr ** 2
+                r_squared_values.append(r2)
+        
+        if correlations:
+            x = np.arange(len(horizons))
+            width = 0.35
+            
+            axes[1, 1].bar(x - width/2, correlations, width, label='Correlation', alpha=0.8, color='lightblue')
+            axes[1, 1].bar(x + width/2, r_squared_values, width, label='R²', alpha=0.8, color='lightcoral')
+            
+            axes[1, 1].set_title('Correlation and R² by Horizon')
+            axes[1, 1].set_xlabel('Prediction Horizon (days)')
+            axes[1, 1].set_ylabel('Value')
+            axes[1, 1].set_xticks(x)
+            axes[1, 1].set_xticklabels([f'{h}-day' for h in horizons])
+            axes[1, 1].legend()
+            axes[1, 1].grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.show()
+    
     def plot_financial_performance(self, save_path: Optional[str] = None):
         """Plot financial performance metrics"""
         if self.predictions is None:
@@ -435,6 +628,8 @@ Training Summary:
             ("training_history", "Training History"),
             ("performance_metrics", "Performance Metrics"), 
             ("prediction_analysis", "Prediction Analysis"),
+            ("return_analysis_by_horizon", "Return Analysis by Horizon"),
+            ("return_accuracy_analysis", "Return Accuracy Analysis"),
             ("financial_performance", "Financial Performance"),
             ("model_comparison", "Model Comparison")
         ]
@@ -457,6 +652,7 @@ def main():
     parser.add_argument('--save_dir', type=str, help='Directory to save plots')
     parser.add_argument('--plot', type=str, choices=[
         'training_history', 'performance_metrics', 'prediction_analysis',
+        'return_analysis_by_horizon', 'return_accuracy_analysis',
         'financial_performance', 'model_comparison', 'all'
     ], default='all', help='Which plot to generate')
     
