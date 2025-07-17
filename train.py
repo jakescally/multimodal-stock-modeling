@@ -53,6 +53,10 @@ def parse_arguments():
                        help='Directory for caching fetched data')
     parser.add_argument('--cache_expiry_hours', type=int, default=24,
                        help='Hours before cached data expires')
+    parser.add_argument('--max_cache_size_mb', type=int, default=100,
+                       help='Maximum cache size in MB (default: 100MB)')
+    parser.add_argument('--clear_cache', action='store_true',
+                       help='Clear all cache files before training')
     
     # Model configuration
     parser.add_argument('--d_model', type=int, default=256, help='Model dimension')
@@ -167,8 +171,16 @@ def create_dataset(args):
         end_date=args.end_date,
         symbols=args.symbols,
         cache_dir=args.cache_dir,
-        cache_expiry_hours=args.cache_expiry_hours
+        cache_expiry_hours=args.cache_expiry_hours,
+        max_cache_size_mb=args.max_cache_size_mb
     )
+    
+    # Handle cache clearing if requested
+    if args.clear_cache:
+        from data.real_data_fetcher import DataCache
+        cache = DataCache(args.cache_dir, args.max_cache_size_mb)
+        cache.clear_cache()
+        logger.info("🧹 Cache cleared successfully")
     
     # Create dataset builder
     dataset_builder = RealDatasetBuilder(

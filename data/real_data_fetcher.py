@@ -33,6 +33,7 @@ class DataConfig:
     symbols: List[str] = None
     cache_dir: str = "data_cache"
     cache_expiry_hours: int = 24
+    max_cache_size_mb: int = 100
     
     def __post_init__(self):
         if self.symbols is None:
@@ -42,11 +43,15 @@ class DataConfig:
 
 
 class DataCache:
-    """Simple file-based caching for data"""
+    """Enhanced file-based caching with automatic cleanup"""
     
-    def __init__(self, cache_dir: str):
+    def __init__(self, cache_dir: str, max_cache_size_mb: int = 100):
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(exist_ok=True)
+        self.max_cache_size_mb = max_cache_size_mb
+        
+        # Clean up expired and oversized cache on initialization
+        self._cleanup_cache()
         
     def get_cache_path(self, key: str) -> Path:
         """Get cache file path for a key"""
@@ -61,19 +66,121 @@ class DataCache:
             
         # Check age
         file_age = datetime.now() - datetime.fromtimestamp(cache_path.stat().st_mtime)
-        return file_age < timedelta(hours=max_age_hours)
+        is_valid = file_age < timedelta(hours=max_age_hours)
+        
+        # If expired, delete the file
+        if not is_valid:
+            try:
+                cache_path.unlink()
+                logger.info(f"  🗑️  Deleted expired cache: {cache_path.name}")
+            except Exception as e:
+                logger.warning(f"  ⚠️  Could not delete expired cache: {e}")
+        
+        return is_valid
     
     def save(self, key: str, data: any) -> None:
-        """Save data to cache"""
+        """Save data to cache with size management"""
         cache_path = self.get_cache_path(key)
+        
+        # Save the data
         with open(cache_path, 'wb') as f:
             pickle.dump(data, f)
+            
+        # Check and manage cache size
+        self._manage_cache_size()
             
     def load(self, key: str) -> any:
         """Load data from cache"""
         cache_path = self.get_cache_path(key)
         with open(cache_path, 'rb') as f:
             return pickle.load(f)
+    
+    def _cleanup_cache(self) -> None:
+        """Clean up expired cache files"""
+        if not self.cache_dir.exists():
+            return
+            
+        cleaned_files = 0
+        for cache_file in self.cache_dir.glob("*.pkl"):
+            try:
+                # Check if file is older than 7 days (aggressive cleanup)
+                file_age = datetime.now() - datetime.fromtimestamp(cache_file.stat().st_mtime)
+                if file_age > timedelta(days=7):
+                    cache_file.unlink()
+                    cleaned_files += 1
+            except Exception as e:
+                logger.warning(f"  ⚠️  Could not clean cache file {cache_file}: {e}")
+        
+        if cleaned_files > 0:
+            logger.info(f"  🧹 Cleaned {cleaned_files} old cache files")
+    
+    def _manage_cache_size(self) -> None:
+        """Manage cache size by removing oldest files if needed"""
+        if not self.cache_dir.exists():
+            return
+            
+        # Calculate current cache size
+        total_size = sum(f.stat().st_size for f in self.cache_dir.glob("*.pkl"))
+        total_size_mb = total_size / (1024 * 1024)
+        
+        if total_size_mb > self.max_cache_size_mb:
+            logger.info(f"  💾 Cache size ({total_size_mb:.1f}MB) exceeds limit ({self.max_cache_size_mb}MB)")
+            
+            # Get all cache files sorted by modification time (oldest first)
+            cache_files = sorted(
+                self.cache_dir.glob("*.pkl"),
+                key=lambda f: f.stat().st_mtime
+            )
+            
+            # Remove oldest files until we're under the limit
+            removed_files = 0
+            for cache_file in cache_files:
+                try:
+                    cache_file.unlink()
+                    removed_files += 1
+                    
+                    # Recalculate size
+                    total_size = sum(f.stat().st_size for f in self.cache_dir.glob("*.pkl"))
+                    total_size_mb = total_size / (1024 * 1024)
+                    
+                    if total_size_mb <= self.max_cache_size_mb:
+                        break
+                        
+                except Exception as e:
+                    logger.warning(f"  ⚠️  Could not remove cache file {cache_file}: {e}")
+            
+            if removed_files > 0:
+                logger.info(f"  🗑️  Removed {removed_files} old cache files")
+                logger.info(f"  💾 Cache size now: {total_size_mb:.1f}MB")
+    
+    def clear_cache(self) -> None:
+        """Manually clear all cache files"""
+        if not self.cache_dir.exists():
+            return
+            
+        removed_files = 0
+        for cache_file in self.cache_dir.glob("*.pkl"):
+            try:
+                cache_file.unlink()
+                removed_files += 1
+            except Exception as e:
+                logger.warning(f"  ⚠️  Could not remove cache file {cache_file}: {e}")
+        
+        logger.info(f"  🧹 Cleared {removed_files} cache files")
+    
+    def get_cache_info(self) -> dict:
+        """Get information about current cache"""
+        if not self.cache_dir.exists():
+            return {"files": 0, "size_mb": 0}
+            
+        cache_files = list(self.cache_dir.glob("*.pkl"))
+        total_size = sum(f.stat().st_size for f in cache_files)
+        
+        return {
+            "files": len(cache_files),
+            "size_mb": total_size / (1024 * 1024),
+            "max_size_mb": self.max_cache_size_mb
+        }
 
 
 class RealDataFetcher:
@@ -81,7 +188,7 @@ class RealDataFetcher:
     
     def __init__(self, config: DataConfig):
         self.config = config
-        self.cache = DataCache(config.cache_dir)
+        self.cache = DataCache(config.cache_dir, config.max_cache_size_mb)
         
     def fetch_stock_data(self) -> Dict[str, pd.DataFrame]:
         """Fetch real stock data using yfinance"""
