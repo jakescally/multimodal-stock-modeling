@@ -70,6 +70,12 @@ logs/
 wandb/
 mlruns/
 
+# TensorBoard runs
+runs/
+
+# Checkpoints
+checkpoints/
+
 # Cache
 .cache/
 .pytest_cache/

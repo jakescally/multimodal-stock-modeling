@@ -457,7 +457,8 @@ class UnifiedDatasetBuilder:
         return normalized_splits
     
     def create_data_loaders(self, dataset_splits: Dict, batch_size: int = 32,
-                           num_workers: int = 4) -> Dict[str, DataLoader]:
+                           num_workers: int = 4, pin_memory: bool = False,
+                           persistent_workers: bool = False) -> Dict[str, DataLoader]:
         """Create PyTorch DataLoaders for training"""
         
         data_loaders = {}
@@ -476,7 +477,8 @@ class UnifiedDatasetBuilder:
                 batch_size=batch_size,
                 shuffle=shuffle,
                 num_workers=num_workers,
-                pin_memory=True
+                pin_memory=pin_memory,
+                persistent_workers=persistent_workers and num_workers > 0
             )
             
             data_loaders[split_name] = data_loader
