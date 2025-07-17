@@ -124,12 +124,64 @@ The model provides comprehensive evaluation metrics:
 - **Financial Metrics**: Information Coefficient (IC), Sharpe ratio
 - **Volatility Prediction**: Volatility MSE and MAE
 
+## 📈 Visualization Tools
+
+Three powerful visualization tools are available to analyze model performance:
+
+### Quick Analysis
+```bash
+python quick_analysis.py checkpoints/experiment_20250717_135243
+```
+- Performance summary with key metrics
+- Quick bar charts for all prediction horizons
+- Performance assessment and insights
+
+### Comprehensive Visualization
+```bash
+python visualize_results.py checkpoints/experiment_20250717_135243 --plot all
+```
+- Training history curves
+- Performance metrics across horizons
+- Prediction vs actual analysis
+- Financial performance metrics
+- Model comparison with baselines
+
+### Training Monitor
+```bash
+python training_monitor.py checkpoints/experiment_20250717_135243 --mode dashboard
+```
+- Real-time training monitoring
+- Training dashboard with key insights
+- Performance assessment and recommendations
+
+### Visualization Options
+
+**Save plots to files:**
+```bash
+python visualize_results.py checkpoints/experiment_20250717_135243 --save_dir plots/
+```
+
+**Generate specific plot types:**
+```bash
+python visualize_results.py checkpoints/experiment_20250717_135243 --plot performance_metrics
+python visualize_results.py checkpoints/experiment_20250717_135243 --plot training_history
+python visualize_results.py checkpoints/experiment_20250717_135243 --plot prediction_analysis
+```
+
+**Real-time monitoring during training:**
+```bash
+python training_monitor.py checkpoints/experiment_20250717_135243 --mode monitor
+```
+
 ## 🏗️ Project Structure
 
 ```
 multimodal-stock-modelling/
 ├── train.py                    # Main training script
 ├── main.py                     # Core model definition
+├── quick_analysis.py           # Quick performance analysis tool
+├── visualize_results.py        # Comprehensive visualization suite
+├── training_monitor.py         # Real-time training monitoring
 ├── data/
 │   ├── real_data_fetcher.py    # Real data fetching from APIs
 │   └── real_dataset_builder.py # Dataset construction and preprocessing
