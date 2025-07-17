@@ -136,8 +136,8 @@ class MultiModalStockModel(nn.Module):
         Args:
             batch: Dictionary containing:
                 - 'stock': [batch, seq_len, stock_features]
-                - 'news': [batch, seq_len, news_features]  
-                - 'employment': [batch, seq_len, employment_features]
+                - 'news': [batch, news_features] or [batch, seq_len, news_features]
+                - 'employment': [batch, employment_features] or [batch, seq_len, employment_features]
                 
         Returns:
             Dictionary with all predictions and intermediate outputs
@@ -147,10 +147,18 @@ class MultiModalStockModel(nn.Module):
         news_data = batch['news']
         employment_data = batch['employment']
         
-        # Encode each modality
-        # For TFT encoder, we need static and historical features
-        # For now, we'll use a simplified approach
+        # Get dimensions from stock data
         batch_size, seq_len = stock_data.size(0), stock_data.size(1)
+        
+        # Handle different input shapes for news and employment data
+        # If they are 2D [batch, features], expand to 3D [batch, seq_len, features]
+        if len(news_data.shape) == 2:
+            # Expand news data to match sequence length
+            news_data = news_data.unsqueeze(1).expand(-1, seq_len, -1)
+        
+        if len(employment_data.shape) == 2:
+            # Expand employment data to match sequence length  
+            employment_data = employment_data.unsqueeze(1).expand(-1, seq_len, -1)
         
         # Encode each modality
         stock_encoded = self.stock_encoder(stock_data)
