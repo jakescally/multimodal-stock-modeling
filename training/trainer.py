@@ -442,36 +442,78 @@ class Trainer:
         
         logger.info(f"Loaded checkpoint from epoch {self.current_epoch}")
     
-    def predict(self, data_loader: DataLoader) -> Dict[str, List[torch.Tensor]]:
+    def _collect_tensor_predictions(self, data_dict: Dict, collected: Dict, prefix: str = "") -> None:
+        """Recursively collect tensor predictions from nested dictionary"""
+        for key, value in data_dict.items():
+            if key == 'task_weights':  # Skip task weights
+                continue
+                
+            full_key = f"{prefix}_{key}" if prefix else key
+            
+            if isinstance(value, dict):
+                # Recursively handle nested dictionaries
+                self._collect_tensor_predictions(value, collected, full_key)
+            elif isinstance(value, torch.Tensor):
+                # Collect tensor predictions
+                if full_key not in collected:
+                    collected[full_key] = []
+                collected[full_key].append(value.cpu())
+            else:
+                logger.debug(f"Skipping non-tensor value for {full_key}: {type(value)}")
+    
+    def predict(self, data_loader: DataLoader) -> Dict[str, torch.Tensor]:
         """Generate predictions on a dataset"""
         self.model.eval()
-        predictions = {}
+        all_predictions = {}
+        all_targets = {}
         
         with torch.no_grad():
-            for features, _ in data_loader:
+            for features, targets in data_loader:
                 features = {k: v.to(self.device) for k, v in features.items()}
+                targets = {k: v.to(self.device) for k, v in targets.items()}
                 
                 outputs = self.model(features)
                 batch_preds = outputs['predictions']
                 
-                # Collect predictions
-                for task, task_preds in batch_preds.items():
-                    if task not in predictions:
-                        predictions[task] = {}
-                    
-                    if isinstance(task_preds, dict):
-                        for subtask, pred in task_preds.items():
-                            if subtask not in predictions[task]:
-                                predictions[task][subtask] = []
-                            predictions[task][subtask].append(pred.cpu())
-                    else:
-                        if 'predictions' not in predictions[task]:
-                            predictions[task]['predictions'] = []
-                        predictions[task]['predictions'].append(task_preds.cpu())
+                # Recursively collect all tensor predictions
+                self._collect_tensor_predictions(batch_preds, all_predictions)
+                
+                # Collect targets (simpler structure)
+                for task, task_targets in targets.items():
+                    if task not in all_targets:
+                        all_targets[task] = []
+                    all_targets[task].append(task_targets.cpu())
         
         # Concatenate predictions
-        for task in predictions:
-            for subtask in predictions[task]:
-                predictions[task][subtask] = torch.cat(predictions[task][subtask], dim=0)
+        final_predictions = {}
+        for key, tensor_list in all_predictions.items():
+            if tensor_list:  # Check if list is not empty
+                try:
+                    # Handle potential dimension issues
+                    stacked_tensors = []
+                    for t in tensor_list:
+                        if t.dim() == 0:  # Scalar tensor
+                            t = t.unsqueeze(0)  # Add batch dimension
+                        stacked_tensors.append(t)
+                    final_predictions[key] = torch.cat(stacked_tensors, dim=0)
+                except RuntimeError as e:
+                    logger.warning(f"Could not concatenate predictions for {key}: {e}")
+                    # Try stacking instead
+                    try:
+                        final_predictions[key] = torch.stack(tensor_list, dim=0)
+                    except RuntimeError as e2:
+                        logger.error(f"Could not stack predictions for {key}: {e2}")
         
-        return predictions
+        # Concatenate targets
+        final_targets = {}
+        for task, tensor_list in all_targets.items():
+            if tensor_list:  # Check if list is not empty
+                try:
+                    final_targets[task] = torch.cat(tensor_list, dim=0)
+                except RuntimeError as e:
+                    logger.warning(f"Could not concatenate targets for {task}: {e}")
+        
+        return {
+            'predictions': final_predictions,
+            'targets': final_targets
+        }
