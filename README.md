@@ -1,460 +1,290 @@
 # Multimodal Stock Prediction Model
 
-A sophisticated machine learning system that combines time series analysis, natural language processing, and employment data to predict stock returns across multiple time horizons with reasonable accuracy.
+A hybrid deep learning model that combines time series analysis with qualitative data for comprehensive stock performance prediction. This model integrates stock prices, financial news, and employment indicators to predict stock movements across multiple time horizons.
 
-## 🚀 Quick Start
+## 🚀 Features
 
-```bash
-# Clone and setup
-git clone <repository-url>
-cd multimodal-stock-modelling
-make setup
+- **Multimodal Data Integration**: Combines stock prices, financial news, and employment data
+- **Real-time Data Fetching**: Automatic data retrieval from Yahoo Finance, news RSS feeds, and employment sources
+- **Multi-horizon Predictions**: Predicts stock movements for 30, 180, 365, and 730 days
+- **Advanced Architecture**: Uses cross-modal fusion with attention mechanisms
+- **Production Ready**: Includes caching, experiment tracking, and comprehensive metrics
+- **Hardware Optimized**: Special optimizations for MacBook (Apple Silicon & Intel)
 
-# Quick training run (recommended)
-python train.py --use_mock_data --epochs 10 --optimize_for_mac
+## 📊 Model Architecture
 
-# Real data training
-python train.py --symbols AAPL MSFT GOOGL --epochs 100 --optimize_for_mac
+```
+Stock Data (OHLCV + Technical Indicators)
+    ↓
+Stock Encoder → Cross-Modal Fusion Layer → Multi-Task Prediction Heads
+    ↑                     ↑                        ↓
+Text Encoder ←→ News Data    Employment Data → Direction, Returns, Volatility
+    ↓
+Employment Encoder
 ```
 
-## 📋 Table of Contents
+### Key Components:
+- **Stock Encoder**: Processes OHLCV data and technical indicators
+- **Text Encoder**: Encodes financial news and sentiment
+- **Employment Encoder**: Processes job market indicators
+- **Cross-Modal Fusion**: Attention-based fusion of all modalities
+- **Multi-Task Heads**: Separate prediction heads for different objectives
 
-- [Features](#features)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Model Architecture](#model-architecture)
-- [Training](#training)
-- [Performance Optimization](#performance-optimization)
-- [Data Sources](#data-sources)
-- [Evaluation](#evaluation)
-- [API Reference](#api-reference)
-- [Contributing](#contributing)
-
-## ✨ Features
-
-### Multi-Modal Architecture
-- **Time Series**: Temporal Fusion Transformer (TFT) for stock price patterns
-- **Text Analysis**: BERT-based sentiment analysis of financial news
-- **Employment Data**: Job market indicators and economic signals
-- **Cross-Modal Fusion**: Advanced attention mechanisms combining all data sources
-
-### Multi-Horizon Prediction
-- **Short-term**: 30-day returns (1-2 months)
-- **Medium-term**: 180-day returns (6 months) 
-- **Long-term**: 365-day and 730-day returns (1-2 years)
-- **Uncertainty Quantification**: Confidence intervals for all predictions
-
-### Advanced Training
-- **Multi-task Learning**: Simultaneous return, volatility, and direction prediction
-- **Financial Metrics**: Sharpe ratio, Information Coefficient, portfolio performance
-- **Mixed Precision**: Faster training with maintained accuracy
-- **MacBook Optimization**: Multi-threading optimized for Apple Silicon
-
-## 🛠 Installation
+## 🛠️ Installation
 
 ### Prerequisites
 - Python 3.8+
-- macOS (optimized) or Linux
-- 8GB+ RAM recommended
-- GPU/Apple Silicon recommended
+- pip or conda
 
 ### Setup
-
 ```bash
+git clone https://github.com/your-username/multimodal-stock-modelling.git
+cd multimodal-stock-modelling
+
 # Create virtual environment
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
-
-# Or use the Makefile
-make setup
 ```
 
-### Dependencies
-- PyTorch 2.0+
-- Transformers (Hugging Face)
-- yfinance, feedparser
-- scikit-learn, pandas, numpy
-- tensorboard
-
-## 📊 Usage
+## 🏃‍♂️ Quick Start
 
 ### Basic Training
-
 ```bash
-# Quick test with mock data
-python train.py --use_mock_data --epochs 5 --batch_size 32
-
-# Train on real financial data
-python train.py --symbols AAPL MSFT GOOGL TSLA --epochs 100
+python train.py --symbols AAPL MSFT GOOGL --epochs 100 --optimize_for_mac
 ```
 
-### Advanced Training
-
+### Advanced Training Configuration
 ```bash
-# Full configuration example
 python train.py \
     --symbols AAPL MSFT GOOGL AMZN TSLA \
-    --start_date 2020-01-01 \
     --epochs 200 \
     --batch_size 64 \
-    --learning_rate 1e-4 \
-    --d_model 512 \
-    --n_heads 8 \
+    --learning_rate 0.0001 \
+    --start_date 2020-01-01 \
+    --sequence_length 252 \
     --fusion_strategy cross_attention \
     --optimize_for_mac \
-    --mixed_precision \
-    --experiment_name production_model
-```
-
-### MacBook Optimization
-
-```bash
-# Automatic optimization (recommended)
-python train.py --optimize_for_mac
-
-# Manual optimization
-python train.py --num_workers 4 --pin_memory --persistent_workers
-```
-
-### Model Evaluation
-
-```bash
-# Evaluate existing model
-python train.py --eval_only --resume checkpoints/best_model.pth
-
-# Save predictions
-python train.py --eval_only --save_predictions --resume checkpoints/best_model.pth
-```
-
-## 🏗 Model Architecture
-
-### Core Components
-
-1. **Stock Encoder**: TFT-based time series analysis
-   - Technical indicators (RSI, MACD, Bollinger Bands)
-   - Price and volume patterns
-   - Variable selection and attention
-
-2. **News Encoder**: BERT-based text analysis
-   - Financial news sentiment
-   - Entity recognition
-   - Temporal aggregation
-
-3. **Employment Encoder**: Economic indicators
-   - Job postings and layoffs
-   - Hiring velocity
-   - Sector-specific employment
-
-4. **Fusion Layer**: Multi-modal integration
-   - Cross-attention mechanisms
-   - Gated fusion
-   - Hierarchical fusion
-
-5. **Prediction Heads**: Multi-task outputs
-   - Return prediction (regression)
-   - Direction classification
-   - Volatility estimation
-
-### Configuration
-
-```python
-config = ModelConfig(
-    d_model=256,           # Model dimension
-    n_heads=8,             # Attention heads
-    sequence_length=252,   # Input length (trading days)
-    prediction_horizons=[30, 180, 365, 730],
-    fusion_strategy='cross_attention'
-)
-```
-
-## 🎯 Training
-
-### Training Configuration
-
-```python
-training_config = TrainingConfig(
-    num_epochs=100,
-    batch_size=32,
-    learning_rate=1e-4,
-    optimizer='adamw',
-    scheduler='cosine',
-    mixed_precision=True
-)
-```
-
-### Loss Functions
-
-- **Return Prediction**: MSE, MAE, Huber loss
-- **Direction Classification**: Cross-entropy with class weights
-- **Volatility Prediction**: Positive-constrained MSE
-- **Multi-task Weighting**: Uncertainty-based adaptive weighting
-
-### Metrics
-
-- **Regression**: MSE, MAE, R², Information Coefficient
-- **Classification**: Accuracy, Precision, Recall, F1
-- **Financial**: Sharpe ratio, Maximum Drawdown, Portfolio returns
-
-## ⚡ Performance Optimization
-
-### MacBook Optimization
-
-The `--optimize_for_mac` flag automatically configures:
-
-- **Threading**: Optimal CPU core utilization
-- **Data Loading**: Parallel workers with memory pinning
-- **Libraries**: Accelerated BLAS/LAPACK operations
-
-```bash
-# Apple Silicon (M1/M2/M3/M4)
-python train.py --optimize_for_mac
-# Sets: 14 threads, 4 workers, MPS acceleration
-
-# Intel Mac  
-python train.py --optimize_for_mac
-# Sets: 8 threads, 3 workers, optimized threading
-```
-
-### Performance Monitoring
-
-```bash
-# Compare optimization impact
-python benchmark_performance.py
-
-# Monitor training
-tensorboard --logdir runs/
+    --experiment_name my_experiment
 ```
 
 ## 📈 Data Sources
 
-### Stock Data (yfinance)
-- OHLCV prices
-- Technical indicators
-- Volume patterns
-- Dividend adjustments
+### Stock Data
+- **Source**: Yahoo Finance API (yfinance)
+- **Features**: OHLCV, technical indicators (RSI, MACD, Bollinger Bands, etc.)
+- **Frequency**: Daily
 
-### News Data (RSS feeds)
-- Financial news articles
-- Sentiment analysis
-- Entity extraction
-- Temporal alignment
+### News Data
+- **Sources**: Yahoo Finance, Reuters, MarketWatch RSS feeds
+- **Processing**: Sentiment analysis and text embeddings
+- **Features**: Title, summary, publication date, sentiment scores
 
-### Employment Data (Mock/API)
-- Job postings by company
-- Layoff announcements
-- Hiring velocity
-- Sector employment trends
+### Employment Data
+- **Source**: Federal Reserve Economic Data (FRED)
+- **Features**: Unemployment rate, job openings, labor participation, etc.
+- **Frequency**: Monthly
 
-### Data Pipeline
+## 🔧 Configuration Options
 
-```python
-# Build unified dataset
-builder = UnifiedDatasetBuilder(sequence_length=252)
-dataset = builder.build_complete_dataset(
-    symbols=['AAPL', 'MSFT'],
-    start_date='2020-01-01',
-    include_news=True,
-    include_employment=True
-)
-```
-
-## 📊 Evaluation
-
-### Verification Scripts
-
+### Training Parameters
 ```bash
-# Test all components
-python verify_data_preprocessing.py
-python verify_fusion_layer.py  
-python verify_training.py
-
-# Performance benchmark
-python benchmark_performance.py
+--symbols AAPL MSFT GOOGL        # Stock symbols to train on
+--epochs 100                     # Number of training epochs
+--batch_size 32                  # Batch size for training
+--learning_rate 0.0001           # Learning rate
+--start_date 2021-01-01          # Start date for training data
+--sequence_length 252            # Input sequence length (trading days)
+--fusion_strategy cross_attention # Fusion strategy for multimodal data
 ```
 
-### Expected Performance
+### Hardware Optimization
+```bash
+--optimize_for_mac              # Enable MacBook-specific optimizations
+--num_workers 4                 # Number of data loading workers
+--pin_memory                    # Enable memory pinning for faster GPU transfer
+--mixed_precision               # Use mixed precision training
+```
 
-- **Information Coefficient**: 0.05-0.15 (industry standard)
-- **Direction Accuracy**: 52-58% (better than random)
-- **Sharpe Ratio**: 1.2-2.0 (risk-adjusted returns)
-- **Training Speed**: 15-30% faster with optimization
+### Experiment Tracking
+```bash
+--experiment_name my_experiment  # Name for experiment tracking
+--checkpoint_dir checkpoints    # Directory for saving checkpoints
+--save_predictions              # Save model predictions to file
+```
 
-## 🔧 API Reference
+## 📊 Model Performance
 
-### Training Script
+The model provides comprehensive evaluation metrics:
+
+- **Regression Metrics**: MSE, MAE, R²
+- **Classification Metrics**: Direction accuracy, precision, recall, F1-score
+- **Financial Metrics**: Information Coefficient (IC), Sharpe ratio
+- **Volatility Prediction**: Volatility MSE and MAE
+
+## 🏗️ Project Structure
+
+```
+multimodal-stock-modelling/
+├── train.py                    # Main training script
+├── main.py                     # Core model definition
+├── data/
+│   ├── real_data_fetcher.py    # Real data fetching from APIs
+│   └── real_dataset_builder.py # Dataset construction and preprocessing
+├── models/
+│   ├── tft_encoder.py          # Temporal Fusion Transformer
+│   ├── text_encoder.py         # Financial text processing
+│   ├── employment_encoder.py   # Employment data processing
+│   ├── fusion_layer.py         # Cross-modal fusion mechanisms
+│   └── prediction_heads.py     # Multi-task prediction heads
+├── training/
+│   ├── trainer.py              # Training orchestration
+│   ├── loss_functions.py       # Custom loss functions
+│   └── metrics.py              # Evaluation metrics
+├── data_cache/                 # Cached data storage
+├── checkpoints/                # Model checkpoints and results
+└── requirements.txt            # Python dependencies
+```
+
+## 🔍 Monitoring and Visualization
+
+### TensorBoard Integration
+```bash
+tensorboard --logdir runs/
+```
+
+### Results Analysis
+Training results are automatically saved to `checkpoints/experiment_*/results.json` containing:
+- Training history and metrics
+- Model configuration
+- Dataset statistics
+- Final test performance
+
+## 📋 Example Usage
+
+### Single Stock Analysis
+```bash
+python train.py --symbols AAPL --epochs 50 --optimize_for_mac
+```
+
+### Portfolio Training
+```bash
+python train.py --symbols AAPL MSFT GOOGL AMZN TSLA NVDA META NFLX --epochs 200
+```
+
+### Custom Date Range
+```bash
+python train.py --symbols AAPL --start_date 2020-01-01 --end_date 2024-01-01 --epochs 100
+```
+
+## 🚀 Advanced Features
+
+### Fusion Strategies
+- `cross_attention`: Cross-modal attention fusion
+- `gated_fusion`: Gated fusion with learnable weights
+- `hierarchical`: Hierarchical pairwise fusion
+- `adaptive`: Adaptive combination of multiple strategies
+
+### MacBook Optimization
+The model includes special optimizations for MacBook hardware:
+- Apple Silicon (M1/M2) MPS acceleration
+- Optimized threading for macOS
+- Memory management for unified memory architecture
+
+## 🔧 Training Script Arguments
 
 ```bash
 python train.py [OPTIONS]
 
+Data Configuration:
+  --start_date DATE         Start date for training data (default: 2021-01-01)
+  --end_date DATE           End date for training data (default: current)
+  --symbols LIST            Stock symbols to train on (default: AAPL MSFT GOOGL AMZN TSLA NVDA META NFLX)
+  --cache_dir STR           Directory for caching data (default: data_cache)
+  --cache_expiry_hours INT  Cache expiry in hours (default: 24)
+
 Model Configuration:
-  --d_model INT         Model dimension (default: 256)
-  --n_heads INT         Attention heads (default: 8)
-  --sequence_length INT Input sequence length (default: 252)
-  --fusion_strategy STR Fusion method (cross_attention|gated_fusion|hierarchical|adaptive)
+  --d_model INT             Model dimension (default: 256)
+  --n_heads INT             Number of attention heads (default: 8)
+  --sequence_length INT     Input sequence length (default: 252)
+  --fusion_strategy STR     Fusion strategy (default: cross_attention)
 
 Training Configuration:
-  --epochs INT          Training epochs (default: 100)
-  --batch_size INT      Batch size (default: 32)
-  --learning_rate FLOAT Learning rate (default: 1e-4)
-  --optimizer STR       Optimizer (adam|adamw|sgd)
-  --scheduler STR       LR scheduler (cosine|step|plateau|none)
+  --epochs INT              Number of training epochs (default: 100)
+  --batch_size INT          Batch size (default: 32)
+  --learning_rate FLOAT     Learning rate (default: 0.0001)
+  --weight_decay FLOAT      Weight decay (default: 0.0001)
+  --optimizer STR           Optimizer (adam|adamw|sgd) (default: adamw)
+  --scheduler STR           LR scheduler (cosine|step|plateau|none) (default: cosine)
 
-Data Configuration:
-  --symbols LIST        Stock symbols (default: AAPL MSFT GOOGL)
-  --start_date DATE     Start date (default: 2020-01-01)
-  --end_date DATE       End date (default: current)
-  --use_mock_data       Use synthetic data for testing
+Loss Configuration:
+  --return_loss_weight FLOAT      Weight for return prediction loss (default: 1.0)
+  --volatility_loss_weight FLOAT  Weight for volatility prediction loss (default: 0.5)
+  --direction_loss_weight FLOAT   Weight for direction classification loss (default: 0.3)
+  --economic_loss_weight FLOAT    Weight for economic indicator loss (default: 0.2)
 
 Optimization:
-  --optimize_for_mac    Auto-optimize for MacBook hardware
-  --num_workers INT     Data loading workers
-  --pin_memory          Pin memory for faster transfer
-  --persistent_workers  Keep workers alive between epochs
-  --mixed_precision     Use mixed precision training
+  --optimize_for_mac        Enable MacBook-specific optimizations
+  --num_workers INT         Number of data loader workers (auto-detected if not specified)
+  --pin_memory              Pin memory for faster data transfer
+  --persistent_workers      Keep data loading workers alive between epochs
+  --mixed_precision         Use mixed precision training
 
 Experiment:
-  --experiment_name STR Experiment identifier
-  --checkpoint_dir STR  Checkpoint directory
-  --resume PATH         Resume from checkpoint
-  --eval_only           Evaluation only
-  --save_predictions    Save test predictions
-```
+  --experiment_name STR     Experiment name for tracking
+  --checkpoint_dir STR      Directory for saving checkpoints (default: checkpoints)
+  --resume STR              Resume training from checkpoint
+  --device STR              Device to use (auto|cpu|cuda|mps) (default: auto)
 
-### Python API
-
-```python
-from main import MultiModalStockModel, ModelConfig
-from training import Trainer, TrainingConfig
-from data import UnifiedDatasetBuilder
-
-# Initialize model
-config = ModelConfig(d_model=256, n_heads=8)
-model = MultiModalStockModel(config)
-
-# Setup training
-trainer = Trainer(model, TrainingConfig())
-trainer.train(train_loader, val_loader)
-
-# Generate predictions
-predictions = trainer.predict(test_loader)
+Evaluation:
+  --eval_only               Only run evaluation on test set
+  --save_predictions        Save model predictions to file
 ```
 
 ## 🧪 Testing
 
-### Run All Tests
-
+### Quick Test
 ```bash
-# Data preprocessing verification
-python verify_data_preprocessing.py
-
-# Model component verification  
-python verify_fusion_layer.py
-
-# Training pipeline verification
-python verify_training.py
-
-# Performance benchmark
-python benchmark_performance.py
+python train.py --symbols AAPL --epochs 1 --optimize_for_mac
 ```
 
-### Test Coverage
-
-- ✅ Data loading and preprocessing (6/6 tests)
-- ✅ Model architecture and fusion (6/6 tests)  
-- ✅ Training pipeline (7/7 tests)
-- ✅ Multi-threading optimization
-- ✅ Checkpointing and resumption
-
-## 📁 Project Structure
-
-```
-multimodal-stock-modelling/
-├── README.md                    # This file
-├── OPTIMIZATION_GUIDE.md        # MacBook optimization guide
-├── requirements.txt             # Python dependencies
-├── pyproject.toml              # Project configuration
-├── Makefile                    # Build automation
-├── main.py                     # Core model architecture
-├── train.py                    # Training script
-├── data/
-│   ├── stock_data.py           # Stock data loading
-│   ├── news_data.py            # News processing
-│   ├── employment_data.py      # Employment data
-│   └── unified_dataset.py      # Multi-modal dataset
-├── models/
-│   ├── tft_encoder.py          # Time series encoder
-│   ├── text_encoder.py         # News encoder
-│   ├── fusion_layer.py         # Multi-modal fusion
-│   └── prediction_heads.py     # Output layers
-├── training/
-│   ├── trainer.py              # Training framework
-│   ├── loss_functions.py       # Multi-task losses
-│   └── metrics.py              # Financial metrics
-├── verification/
-│   ├── verify_data_preprocessing.py
-│   ├── verify_fusion_layer.py
-│   ├── verify_training.py
-│   └── benchmark_performance.py
-└── checkpoints/                # Model checkpoints
+### Full Training
+```bash
+python train.py --symbols AAPL MSFT GOOGL --epochs 100 --optimize_for_mac
 ```
 
 ## 🤝 Contributing
 
-### Development Setup
-
-```bash
-# Clone repository
-git clone <repository-url>
-cd multimodal-stock-modelling
-
-# Setup development environment
-make setup
-make verify
-
-# Run tests before committing
-python verify_training.py
-```
-
-### Code Style
-
-- Use type hints
-- Follow PEP 8
-- Add docstrings
-- Include tests for new features
-
-### Submitting Changes
-
-1. Create feature branch
-2. Add tests
-3. Update documentation
-4. Submit pull request
-
-## 📚 References
-
-### Academic Papers
-- "Temporal Fusion Transformers for Interpretable Multi-horizon Time Series Forecasting"
-- "Attention Is All You Need" (Transformer architecture)
-- "Multi-Task Learning Using Uncertainty Weighting"
-
-### Financial ML
-- "Advances in Financial Machine Learning" by Marcos López de Prado
-- "Machine Learning for Asset Managers" by Marcos López de Prado
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## 📄 License
 
-MIT License - see LICENSE file for details.
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 📚 Citations
+
+If you use this model in your research, please cite:
+```bibtex
+@misc{multimodal-stock-prediction,
+  title={Multimodal Stock Prediction Model},
+  author={Your Name},
+  year={2025},
+  url={https://github.com/your-username/multimodal-stock-modelling}
+}
+```
 
 ## 🔗 Links
 
-- **Documentation**: [OPTIMIZATION_GUIDE.md](OPTIMIZATION_GUIDE.md)
-- **Issues**: Report bugs and feature requests
-- **Discussions**: Community support and questions
+- [Project Repository](https://github.com/your-username/multimodal-stock-modelling)
+- [Documentation](https://github.com/your-username/multimodal-stock-modelling/wiki)
+- [Issue Tracker](https://github.com/your-username/multimodal-stock-modelling/issues)
 
 ---
 
-**Last Updated**: December 2024
-**Version**: 1.0.0
-**Compatibility**: Python 3.8+, PyTorch 2.0+, macOS/Linux
+**⚠️ Disclaimer**: This model is for educational and research purposes only. Do not use for actual financial trading without proper risk management and validation.
