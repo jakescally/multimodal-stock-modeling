@@ -291,7 +291,9 @@ class RealDataFetcher:
         """Fetch financial news data from multiple sources with historical coverage"""
         logger.info("Fetching comprehensive news data")
         
-        cache_key = f"news_{self.config.start_date}_{self.config.end_date}"
+        # Make cache key ticker-specific
+        symbols_key = "_".join(sorted(self.config.symbols))
+        cache_key = f"news_{symbols_key}_{self.config.start_date}_{self.config.end_date}"
         
         if self.cache.is_cached(cache_key, self.config.cache_expiry_hours):
             logger.info("  📦 Loading news data from cache")
@@ -322,18 +324,24 @@ class RealDataFetcher:
         return all_news_data
     
     def _fetch_rss_news(self) -> Dict[str, pd.DataFrame]:
-        """Fetch recent news from RSS feeds"""
-        news_sources = {
+        """Fetch recent news from RSS feeds with ticker-specific sources"""
+        # General financial news sources
+        general_sources = {
             'yahoo_finance': 'https://feeds.finance.yahoo.com/rss/2.0/headline',
             'reuters_business': 'https://feeds.reuters.com/reuters/businessNews',
             'marketwatch': 'https://feeds.marketwatch.com/marketwatch/marketpulse/',
             'seeking_alpha': 'https://seekingalpha.com/market_currents.xml',
             'reuters_markets': 'https://feeds.reuters.com/reuters/markets',
+            'cnbc_markets': 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=15839069',
+            'bloomberg_markets': 'https://feeds.bloomberg.com/markets/news.rss',
+            'financial_times': 'https://www.ft.com/rss/home',
+            'wsj_markets': 'https://feeds.a.dj.com/rss/RSSMarketsMain.xml',
         }
         
         rss_data = {}
         
-        for source_name, feed_url in news_sources.items():
+        # Fetch general financial news
+        for source_name, feed_url in general_sources.items():
             try:
                 feed = feedparser.parse(feed_url)
                 
@@ -351,13 +359,14 @@ class RealDataFetcher:
                         title = getattr(entry, 'title', '')
                         summary = getattr(entry, 'summary', '')
                         
-                        if self._is_finance_relevant(title, summary):
+                        if self._is_finance_and_symbol_relevant(title, summary):
                             news_item = {
                                 'date': published_date,
                                 'title': title,
                                 'summary': summary,
                                 'link': getattr(entry, 'link', ''),
-                                'source': source_name
+                                'source': source_name,
+                                'symbols': self._extract_symbols_from_text(title + ' ' + summary)
                             }
                             news_items.append(news_item)
                     
@@ -372,6 +381,45 @@ class RealDataFetcher:
                 logger.warning(f"    ⚠️  {source_name}: {e}")
                 continue
         
+        # Fetch ticker-specific news for each symbol
+        for symbol in self.config.symbols:
+            try:
+                # Yahoo Finance ticker-specific RSS
+                ticker_url = f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={symbol}&region=US&lang=en-US"
+                feed = feedparser.parse(ticker_url)
+                
+                ticker_news = []
+                if feed.entries:
+                    for entry in feed.entries:
+                        published = getattr(entry, 'published_parsed', None)
+                        if published:
+                            published_date = datetime(*published[:6])
+                        else:
+                            published_date = datetime.now()
+                        
+                        title = getattr(entry, 'title', '')
+                        summary = getattr(entry, 'summary', '')
+                        
+                        ticker_news.append({
+                            'date': published_date,
+                            'title': title,
+                            'summary': summary,
+                            'link': getattr(entry, 'link', ''),
+                            'source': f'yahoo_finance_{symbol}',
+                            'symbols': [symbol]
+                        })
+                
+                if ticker_news:
+                    ticker_df = pd.DataFrame(ticker_news)
+                    ticker_df['date'] = pd.to_datetime(ticker_df['date'])
+                    ticker_df = ticker_df.sort_values('date')
+                    rss_data[f'yahoo_{symbol}'] = ticker_df
+                    logger.info(f"    ✅ Yahoo {symbol}: {len(ticker_df)} ticker-specific articles")
+                
+            except Exception as e:
+                logger.warning(f"    ⚠️  Yahoo {symbol}: {e}")
+                continue
+        
         return rss_data
     
     def _generate_historical_news(self) -> Dict[str, pd.DataFrame]:
@@ -381,8 +429,127 @@ class RealDataFetcher:
         start_date = pd.to_datetime(self.config.start_date)
         end_date = pd.to_datetime(self.config.end_date)
         
-        # News templates for different categories
-        news_templates = {
+        # Ticker-specific news templates
+        ticker_specific_templates = {
+            'AAPL': {
+                'earnings': [
+                    "Apple reports {sentiment} quarterly iPhone sales",
+                    "Apple services revenue {sentiment} expectations",
+                    "Apple guidance {sentiment} for next quarter",
+                    "Apple beats/misses Wall Street estimates",
+                    "Apple's App Store revenue {sentiment}"
+                ],
+                'product': [
+                    "Apple announces new iPhone features",
+                    "Apple unveils Mac innovations",
+                    "Apple Watch gains health capabilities",
+                    "Apple TV+ content expansion",
+                    "Apple silicon chip performance"
+                ],
+                'market': [
+                    "Apple stock {sentiment} on China market concerns",
+                    "Apple shares {sentiment} amid supply chain issues",
+                    "Apple market cap milestone",
+                    "Apple dividend and buyback program",
+                    "Apple stock split announcement"
+                ]
+            },
+            'GOOGL': {
+                'earnings': [
+                    "Google reports {sentiment} advertising revenue",
+                    "Alphabet cloud revenue {sentiment} expectations",
+                    "Google parent company guidance {sentiment}",
+                    "YouTube revenue {sentiment} estimates",
+                    "Google Search revenue performance"
+                ],
+                'product': [
+                    "Google launches new AI features",
+                    "Google Cloud platform expansion",
+                    "Android updates and features",
+                    "Google Workspace improvements",
+                    "Google Assistant capabilities"
+                ],
+                'market': [
+                    "Google stock {sentiment} on regulatory concerns",
+                    "Alphabet shares {sentiment} amid competition",
+                    "Google antitrust case developments",
+                    "Google advertising market share",
+                    "Google stock performance vs peers"
+                ]
+            },
+            'MSFT': {
+                'earnings': [
+                    "Microsoft reports {sentiment} cloud revenue",
+                    "Microsoft Azure growth {sentiment}",
+                    "Office 365 subscription numbers {sentiment}",
+                    "Microsoft gaming revenue {sentiment}",
+                    "Microsoft productivity suite performance"
+                ],
+                'product': [
+                    "Microsoft launches new Teams features",
+                    "Microsoft Azure AI capabilities",
+                    "Windows 11 adoption rates",
+                    "Microsoft Office updates",
+                    "Microsoft Surface product line"
+                ],
+                'market': [
+                    "Microsoft stock {sentiment} on enterprise demand",
+                    "Microsoft shares {sentiment} amid cloud competition",
+                    "Microsoft market position in AI",
+                    "Microsoft dividend increase",
+                    "Microsoft stock buyback program"
+                ]
+            },
+            'AMZN': {
+                'earnings': [
+                    "Amazon reports {sentiment} e-commerce growth",
+                    "Amazon Web Services revenue {sentiment}",
+                    "Amazon Prime membership numbers {sentiment}",
+                    "Amazon logistics costs {sentiment}",
+                    "Amazon advertising revenue growth"
+                ],
+                'product': [
+                    "Amazon expands delivery services",
+                    "Amazon Web Services new features",
+                    "Amazon Prime Video content",
+                    "Amazon Alexa improvements",
+                    "Amazon fulfillment center expansion"
+                ],
+                'market': [
+                    "Amazon stock {sentiment} on retail competition",
+                    "Amazon shares {sentiment} amid regulatory scrutiny",
+                    "Amazon cloud market share",
+                    "Amazon labor relations",
+                    "Amazon sustainability initiatives"
+                ]
+            },
+            'TSLA': {
+                'earnings': [
+                    "Tesla reports {sentiment} vehicle deliveries",
+                    "Tesla energy storage revenue {sentiment}",
+                    "Tesla manufacturing capacity {sentiment}",
+                    "Tesla autonomous driving progress {sentiment}",
+                    "Tesla solar panel installations {sentiment}"
+                ],
+                'product': [
+                    "Tesla launches new vehicle model",
+                    "Tesla battery technology advances",
+                    "Tesla Supercharger network expansion",
+                    "Tesla Full Self-Driving updates",
+                    "Tesla energy products growth"
+                ],
+                'market': [
+                    "Tesla stock {sentiment} on delivery numbers",
+                    "Tesla shares {sentiment} amid EV competition",
+                    "Tesla market cap fluctuations",
+                    "Tesla regulatory approvals",
+                    "Tesla CEO social media impact"
+                ]
+            }
+        }
+        
+        # Generic templates for symbols not specifically defined
+        generic_templates = {
             'earnings': [
                 "{symbol} reports {sentiment} quarterly earnings",
                 "{symbol} {sentiment} earnings expectations for Q{quarter}",
@@ -391,11 +558,11 @@ class RealDataFetcher:
                 "{symbol} beats/misses earnings estimates",
             ],
             'product': [
-                "{symbol} announces new {product} launch",
-                "{symbol} unveils {product} innovation",
-                "{symbol} {product} gains market traction",
-                "New {symbol} {product} receives positive reviews",
-                "{symbol} expands {product} offerings",
+                "{symbol} announces new product launch",
+                "{symbol} unveils innovation",
+                "{symbol} product gains market traction",
+                "New {symbol} product receives positive reviews",
+                "{symbol} expands product offerings",
             ],
             'market': [
                 "{symbol} stock {sentiment} on market news",
@@ -419,10 +586,20 @@ class RealDataFetcher:
         for symbol in self.config.symbols:
             news_items = []
             
-            # Generate 5-15 articles per month for each symbol
+            # Use ticker-specific templates if available, otherwise use generic
+            if symbol in ticker_specific_templates:
+                symbol_templates = ticker_specific_templates[symbol]
+                logger.info(f"    🎯 Using ticker-specific templates for {symbol}")
+            else:
+                symbol_templates = generic_templates
+                logger.info(f"    📰 Using generic templates for {symbol}")
+            
+            # Generate 8-20 articles per month for each symbol (more realistic variation)
             current_date = start_date
             while current_date <= end_date:
-                month_articles = np.random.randint(5, 16)
+                # Vary article count based on market conditions and symbol popularity
+                base_articles = 12 if symbol in ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA'] else 8
+                month_articles = np.random.randint(base_articles, base_articles + 8)
                 
                 for _ in range(month_articles):
                     # Random date within the month
@@ -435,34 +612,44 @@ class RealDataFetcher:
                     article_date = current_date + pd.Timedelta(days=random_day)
                     
                     # Random news category
-                    category = np.random.choice(list(news_templates.keys()))
-                    template = np.random.choice(news_templates[category])
+                    category = np.random.choice(list(symbol_templates.keys()))
+                    template = np.random.choice(symbol_templates[category])
                     
                     # Generate content
                     sentiment = np.random.choice(['positive', 'negative', 'neutral'])
                     sentiment_words = {
-                        'positive': ['strong', 'exceeds', 'outperforms', 'bullish', 'optimistic'],
-                        'negative': ['weak', 'disappoints', 'underperforms', 'bearish', 'concerning'],
-                        'neutral': ['meets', 'stable', 'maintains', 'steady', 'expected']
+                        'positive': ['strong', 'exceeds', 'outperforms', 'bullish', 'optimistic', 'robust', 'impressive'],
+                        'negative': ['weak', 'disappoints', 'underperforms', 'bearish', 'concerning', 'struggles', 'declines'],
+                        'neutral': ['meets', 'stable', 'maintains', 'steady', 'expected', 'consistent', 'unchanged']
                     }
                     
-                    # Create realistic title and summary
+                    # Create realistic title
                     title = template.format(
                         symbol=symbol,
                         sentiment=np.random.choice(sentiment_words[sentiment]),
-                        quarter=np.random.choice(['1', '2', '3', '4']),
-                        product=np.random.choice(['iPhone', 'Surface', 'Cloud', 'AI', 'Services'])
+                        quarter=np.random.choice(['1', '2', '3', '4'])
                     )
                     
-                    summary = f"Analysis of {symbol} performance and market implications. " + \
-                             f"The company shows {sentiment} indicators in recent developments."
+                    # Create more detailed summary
+                    company_names = {
+                        'AAPL': 'Apple Inc.',
+                        'GOOGL': 'Alphabet Inc.',
+                        'MSFT': 'Microsoft Corporation',
+                        'AMZN': 'Amazon.com Inc.',
+                        'TSLA': 'Tesla Inc.'
+                    }
+                    
+                    company_name = company_names.get(symbol, f"{symbol} Corporation")
+                    summary = f"{company_name} ({symbol}) shows {sentiment} indicators in recent market developments. " + \
+                             f"Analysts are monitoring the company's performance across key business segments and market position."
                     
                     news_items.append({
                         'date': article_date,
                         'title': title,
                         'summary': summary,
                         'link': f'https://example.com/news/{symbol.lower()}/{article_date.strftime("%Y%m%d")}',
-                        'source': 'historical_simulation'
+                        'source': f'historical_simulation_{symbol}',
+                        'symbols': [symbol]
                     })
                 
                 # Move to next month
@@ -477,7 +664,7 @@ class RealDataFetcher:
             news_df = news_df.sort_values('date')
             
             historical_data[f'historical_{symbol}'] = news_df
-            logger.info(f"    ✅ {symbol}: {len(news_df)} historical articles generated")
+            logger.info(f"    ✅ {symbol}: {len(news_df)} ticker-specific historical articles generated")
         
         return historical_data
     
@@ -495,43 +682,139 @@ class RealDataFetcher:
                 # Generate company-specific news events
                 news_items = []
                 
-                # Key events that would affect stock price
-                events = [
-                    f"{company_name} announces quarterly dividend",
-                    f"{company_name} stock split announced",
-                    f"{company_name} CEO discusses future strategy",
-                    f"{company_name} expands into new markets",
-                    f"Analysts upgrade {company_name} price target",
-                    f"{company_name} reports strong user growth",
-                    f"{company_name} facing competitive pressure",
-                    f"{company_name} announces major partnership",
-                    f"{company_name} invests in R&D expansion",
-                    f"Regulatory update affects {company_name}",
-                ]
+                # Ticker-specific corporate events
+                ticker_events = {
+                    'AAPL': [
+                        f"{company_name} announces quarterly dividend increase",
+                        f"{company_name} stock split announced",
+                        f"{company_name} CEO discusses iPhone strategy",
+                        f"{company_name} expands into new markets",
+                        f"Analysts upgrade {company_name} price target",
+                        f"{company_name} reports strong services growth",
+                        f"{company_name} facing supply chain challenges",
+                        f"{company_name} announces major supplier partnership",
+                        f"{company_name} invests in chip manufacturing",
+                        f"App Store regulations affect {company_name}",
+                        f"{company_name} launches new retail initiatives",
+                        f"{company_name} environmental sustainability program"
+                    ],
+                    'GOOGL': [
+                        f"{company_name} announces AI research breakthrough",
+                        f"{company_name} stock split proposal",
+                        f"{company_name} CEO discusses search strategy",
+                        f"{company_name} expands cloud services",
+                        f"Analysts upgrade {company_name} on ad revenue",
+                        f"{company_name} reports strong YouTube growth",
+                        f"{company_name} facing antitrust challenges",
+                        f"{company_name} announces major acquisition",
+                        f"{company_name} invests in quantum computing",
+                        f"Privacy regulations affect {company_name}",
+                        f"{company_name} launches new AI products",
+                        f"{company_name} data center expansion"
+                    ],
+                    'MSFT': [
+                        f"{company_name} announces dividend increase",
+                        f"{company_name} cloud revenue milestone",
+                        f"{company_name} CEO discusses Azure strategy",
+                        f"{company_name} expands enterprise solutions",
+                        f"Analysts upgrade {company_name} on cloud growth",
+                        f"{company_name} reports strong Teams adoption",
+                        f"{company_name} facing cloud competition",
+                        f"{company_name} announces major partnership",
+                        f"{company_name} invests in AI development",
+                        f"Security updates affect {company_name}",
+                        f"{company_name} launches new productivity tools",
+                        f"{company_name} gaming division growth"
+                    ],
+                    'AMZN': [
+                        f"{company_name} announces logistics expansion",
+                        f"{company_name} stock split consideration",
+                        f"{company_name} CEO discusses e-commerce strategy",
+                        f"{company_name} expands AWS services",
+                        f"Analysts upgrade {company_name} on cloud growth",
+                        f"{company_name} reports strong Prime membership",
+                        f"{company_name} facing labor challenges",
+                        f"{company_name} announces major acquisition",
+                        f"{company_name} invests in automation",
+                        f"Regulatory scrutiny affects {company_name}",
+                        f"{company_name} launches new delivery services",
+                        f"{company_name} sustainability initiatives"
+                    ],
+                    'TSLA': [
+                        f"{company_name} announces production milestone",
+                        f"{company_name} stock split proposal",
+                        f"{company_name} CEO discusses vehicle strategy",
+                        f"{company_name} expands manufacturing capacity",
+                        f"Analysts upgrade {company_name} on deliveries",
+                        f"{company_name} reports strong energy growth",
+                        f"{company_name} facing production challenges",
+                        f"{company_name} announces battery partnership",
+                        f"{company_name} invests in autonomous driving",
+                        f"Vehicle safety regulations affect {company_name}",
+                        f"{company_name} launches new vehicle model",
+                        f"{company_name} Supercharger network expansion"
+                    ]
+                }
+                
+                # Use ticker-specific events if available, otherwise generic
+                if symbol in ticker_events:
+                    events = ticker_events[symbol]
+                else:
+                    events = [
+                        f"{company_name} announces quarterly dividend",
+                        f"{company_name} stock split announced",
+                        f"{company_name} CEO discusses future strategy",
+                        f"{company_name} expands into new markets",
+                        f"Analysts upgrade {company_name} price target",
+                        f"{company_name} reports strong user growth",
+                        f"{company_name} facing competitive pressure",
+                        f"{company_name} announces major partnership",
+                        f"{company_name} invests in R&D expansion",
+                        f"Regulatory update affects {company_name}",
+                    ]
                 
                 # Generate events throughout the date range
                 start_date = pd.to_datetime(self.config.start_date)
                 end_date = pd.to_datetime(self.config.end_date)
                 
-                # 2-5 major events per month
+                # 3-7 major events per month (varies by company prominence)
                 current_date = start_date
                 while current_date <= end_date:
-                    month_events = np.random.randint(2, 6)
+                    # More events for prominent companies
+                    base_events = 4 if symbol in ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA'] else 3
+                    month_events = np.random.randint(base_events, base_events + 3)
                     
                     for _ in range(month_events):
-                        days_in_month = 30
-                        random_day = np.random.randint(0, days_in_month)
+                        # Better month handling
+                        if current_date.month == 12:
+                            next_month = current_date.replace(year=current_date.year+1, month=1, day=1)
+                        else:
+                            next_month = current_date.replace(month=current_date.month+1, day=1)
+                        days_in_month = (next_month - current_date).days
+                        random_day = np.random.randint(0, max(1, days_in_month))
                         event_date = current_date + pd.Timedelta(days=random_day)
                         
                         if event_date <= end_date:
                             event_title = np.random.choice(events)
                             
+                            # Create more detailed, ticker-specific summary
+                            summaries = {
+                                'AAPL': f"Apple Inc. corporate development that may impact iPhone sales, services revenue, and overall market position.",
+                                'GOOGL': f"Alphabet Inc. strategic initiative that may affect search revenue, cloud growth, and regulatory compliance.",
+                                'MSFT': f"Microsoft Corporation announcement that may influence cloud services, productivity software, and enterprise adoption.",
+                                'AMZN': f"Amazon.com Inc. development that may impact e-commerce growth, AWS revenue, and logistics operations.",
+                                'TSLA': f"Tesla Inc. update that may affect vehicle deliveries, energy storage, and autonomous driving progress."
+                            }
+                            
+                            summary = summaries.get(symbol, f"Important {company_name} development that may impact stock performance and investor sentiment.")
+                            
                             news_items.append({
                                 'date': event_date,
                                 'title': event_title,
-                                'summary': f"Important development for {company_name} that may impact stock performance and investor sentiment.",
+                                'summary': summary,
                                 'link': f'https://example.com/company/{symbol.lower()}/{event_date.strftime("%Y%m%d")}',
-                                'source': f'company_{symbol}'
+                                'source': f'company_{symbol}',
+                                'symbols': [symbol]
                             })
                     
                     # Move to next month
@@ -565,10 +848,31 @@ class RealDataFetcher:
         text = (title + ' ' + summary).lower()
         return any(keyword in text for keyword in finance_keywords)
     
+    def _is_finance_and_symbol_relevant(self, title: str, summary: str) -> bool:
+        """Check if news is finance-relevant and mentions our symbols"""
+        if not self._is_finance_relevant(title, summary):
+            return False
+        
+        # Check if any of our symbols are mentioned
+        text = (title + ' ' + summary).upper()
+        return any(symbol in text for symbol in self.config.symbols)
+    
+    def _extract_symbols_from_text(self, text: str) -> List[str]:
+        """Extract symbols mentioned in text"""
+        text = text.upper()
+        mentioned_symbols = []
+        
+        for symbol in self.config.symbols:
+            if symbol in text:
+                mentioned_symbols.append(symbol)
+        
+        return mentioned_symbols
+    
     def fetch_employment_data(self) -> pd.DataFrame:
         """Fetch employment data from FRED (Federal Reserve Economic Data)"""
         logger.info("Fetching employment data from FRED")
         
+        # Employment data is not ticker-specific, so no need to include symbols in cache key
         cache_key = f"employment_{self.config.start_date}_{self.config.end_date}"
         
         if self.cache.is_cached(cache_key, self.config.cache_expiry_hours):
@@ -585,7 +889,10 @@ class RealDataFetcher:
             end_date = pd.to_datetime(self.config.end_date)
             
             # Monthly data (employment data is typically monthly)
+            # Use month start frequency and ensure we get the right number of months
             date_range = pd.date_range(start=start_date, end=end_date, freq='MS')
+            
+            logger.info(f"    📅 Creating employment data for {len(date_range)} months ({start_date.strftime('%Y-%m')} to {end_date.strftime('%Y-%m')})")
             
             employment_data = pd.DataFrame({
                 'date': date_range,
